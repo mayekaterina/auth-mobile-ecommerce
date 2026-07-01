@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Registration_Clean" targetNamespace="http://example.com/auth-mobile-ecommerce" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.16.0">
+  <bpmn:collaboration id="Collaboration_Registration_Clean">
+    <bpmn:participant id="Participant_User" name="Пользователь" />
+    <bpmn:participant id="Participant_Mobile" name="Мобильное приложение" />
+    <bpmn:participant id="Participant_Backend" name="Backend API" processRef="Process_Backend" />
+    <bpmn:participant id="Participant_DB" name="База данных" />
+    <bpmn:participant id="Participant_Email" name="Email сервис" />
+    <bpmn:messageFlow id="Message_User_Mobile" name="Ввод email и пароля" sourceRef="Participant_User" targetRef="Participant_Mobile" />
+    <bpmn:messageFlow id="Message_Mobile_Backend" name="POST /api/v1/auth/register" sourceRef="Participant_Mobile" targetRef="Start_Register_Request" />
+    <bpmn:messageFlow id="Message_Weak_Mobile" name="400 WEAK_PASSWORD" sourceRef="Task_Return_Weak" targetRef="Participant_Mobile" />
+    <bpmn:messageFlow id="Message_EmailExists_Mobile" name="409 EMAIL_ALREADY_EXISTS" sourceRef="Task_Return_Email_Exists" targetRef="Participant_Mobile" />
+    <bpmn:messageFlow id="Message_Success_Mobile" name="201 CREATED" sourceRef="Task_Return_Success" targetRef="Participant_Mobile" />
+    <bpmn:messageFlow id="Message_Check_Email_DB" name="Поиск пользователя по email" sourceRef="Task_Check_Email" targetRef="Participant_DB" />
+    <bpmn:messageFlow id="Message_DB_Check_Result" name="Результат поиска" sourceRef="Participant_DB" targetRef="Task_Get_DB_Result" />
+    <bpmn:messageFlow id="Message_Create_User_DB" name="Создать пользователя" sourceRef="Task_Create_User" targetRef="Participant_DB" />
+    <bpmn:messageFlow id="Message_Send_Email" name="Отправить письмо подтверждения" sourceRef="Task_Send_Email" targetRef="Participant_Email" />
+    <bpmn:messageFlow id="Message_Email_Result" name="Письмо отправлено" sourceRef="Participant_Email" targetRef="Task_Return_Success" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Backend" name="Регистрация пользователя" isExecutable="false">
+    <bpmn:startEvent id="Start_Register_Request" name="Получен запрос регистрации">
+      <bpmn:outgoing>Flow_Start_Validate</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Task_Validate_Data" name="Проверить email и пароль">
+      <bpmn:incoming>Flow_Start_Validate</bpmn:incoming>
+      <bpmn:outgoing>Flow_Validate_Password_Gateway</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_Password_Strong" name="Пароль корректный?">
+      <bpmn:incoming>Flow_Validate_Password_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Password_Weak</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Password_Strong</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Task_Return_Weak" name="Вернуть ошибку слабого пароля">
+      <bpmn:incoming>Flow_Password_Weak</bpmn:incoming>
+      <bpmn:outgoing>Flow_Weak_End</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_Weak" name="Регистрация не выполнена">
+      <bpmn:incoming>Flow_Weak_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:task id="Task_Check_Email" name="Запросить проверку email в БД">
+      <bpmn:incoming>Flow_Password_Strong</bpmn:incoming>
+      <bpmn:outgoing>Flow_Check_Email_Get_Result</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_Get_DB_Result" name="Получить результат поиска">
+      <bpmn:incoming>Flow_Check_Email_Get_Result</bpmn:incoming>
+      <bpmn:outgoing>Flow_Get_Result_Email_Gateway</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_Email_Exists" name="Email найден?">
+      <bpmn:incoming>Flow_Get_Result_Email_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Email_Exists</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Email_Free</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Task_Return_Email_Exists" name="Вернуть ошибку email уже существует">
+      <bpmn:incoming>Flow_Email_Exists</bpmn:incoming>
+      <bpmn:outgoing>Flow_Email_Exists_End</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_Email_Exists" name="Регистрация не выполнена">
+      <bpmn:incoming>Flow_Email_Exists_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:task id="Task_Hash_Password" name="Хешировать пароль">
+      <bpmn:incoming>Flow_Email_Free</bpmn:incoming>
+      <bpmn:outgoing>Flow_Hash_Create_User</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_Create_User" name="Создать пользователя">
+      <bpmn:incoming>Flow_Hash_Create_User</bpmn:incoming>
+      <bpmn:outgoing>Flow_Create_Send_Email</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_Send_Email" name="Запросить отправку письма">
+      <bpmn:incoming>Flow_Create_Send_Email</bpmn:incoming>
+      <bpmn:outgoing>Flow_Send_Email_Return_Success</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_Return_Success" name="Вернуть успешный ответ">
+      <bpmn:incoming>Flow_Send_Email_Return_Success</bpmn:incoming>
+      <bpmn:outgoing>Flow_Success_End</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_Success" name="Регистрация выполнена">
+      <bpmn:incoming>Flow_Success_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start_Validate" sourceRef="Start_Register_Request" targetRef="Task_Validate_Data" />
+    <bpmn:sequenceFlow id="Flow_Validate_Password_Gateway" sourceRef="Task_Validate_Data" targetRef="Gateway_Password_Strong" />
+    <bpmn:sequenceFlow id="Flow_Password_Weak" name="Нет" sourceRef="Gateway_Password_Strong" targetRef="Task_Return_Weak" />
+    <bpmn:sequenceFlow id="Flow_Password_Strong" name="Да" sourceRef="Gateway_Password_Strong" targetRef="Task_Check_Email" />
+    <bpmn:sequenceFlow id="Flow_Weak_End" sourceRef="Task_Return_Weak" targetRef="End_Weak" />
+    <bpmn:sequenceFlow id="Flow_Check_Email_Get_Result" sourceRef="Task_Check_Email" targetRef="Task_Get_DB_Result" />
+    <bpmn:sequenceFlow id="Flow_Get_Result_Email_Gateway" sourceRef="Task_Get_DB_Result" targetRef="Gateway_Email_Exists" />
+    <bpmn:sequenceFlow id="Flow_Email_Exists" name="Да" sourceRef="Gateway_Email_Exists" targetRef="Task_Return_Email_Exists" />
+    <bpmn:sequenceFlow id="Flow_Email_Free" name="Нет" sourceRef="Gateway_Email_Exists" targetRef="Task_Hash_Password" />
+    <bpmn:sequenceFlow id="Flow_Email_Exists_End" sourceRef="Task_Return_Email_Exists" targetRef="End_Email_Exists" />
+    <bpmn:sequenceFlow id="Flow_Hash_Create_User" sourceRef="Task_Hash_Password" targetRef="Task_Create_User" />
+    <bpmn:sequenceFlow id="Flow_Create_Send_Email" sourceRef="Task_Create_User" targetRef="Task_Send_Email" />
+    <bpmn:sequenceFlow id="Flow_Send_Email_Return_Success" sourceRef="Task_Send_Email" targetRef="Task_Return_Success" />
+    <bpmn:sequenceFlow id="Flow_Success_End" sourceRef="Task_Return_Success" targetRef="End_Success" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Registration_Clean">
+    <bpmndi:BPMNPlane id="BPMNPlane_Registration_Clean" bpmnElement="Collaboration_Registration_Clean">
+      <bpmndi:BPMNShape id="Participant_User_di" bpmnElement="Participant_User" isHorizontal="true">
+        <dc:Bounds x="160" y="40" width="2300" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_Mobile_di" bpmnElement="Participant_Mobile" isHorizontal="true">
+        <dc:Bounds x="160" y="150" width="2300" height="90" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_Backend_di" bpmnElement="Participant_Backend" isHorizontal="true">
+        <dc:Bounds x="160" y="280" width="2300" height="570" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_Register_Request_di" bpmnElement="Start_Register_Request">
+        <dc:Bounds x="240" y="442" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="217" y="486" width="82" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Validate_Data_di" bpmnElement="Task_Validate_Data">
+        <dc:Bounds x="330" y="425" width="160" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Password_Strong_di" bpmnElement="Gateway_Password_Strong" isMarkerVisible="true">
+        <dc:Bounds x="560" y="435" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="547" y="396" width="66" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Return_Weak_di" bpmnElement="Task_Return_Weak">
+        <dc:Bounds x="500" y="665" width="180" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Weak_di" bpmnElement="End_Weak">
+        <dc:Bounds x="770" y="682" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="750" y="726" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Check_Email_di" bpmnElement="Task_Check_Email">
+        <dc:Bounds x="700" y="425" width="180" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Get_DB_Result_di" bpmnElement="Task_Get_DB_Result">
+        <dc:Bounds x="960" y="425" width="170" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Email_Exists_di" bpmnElement="Gateway_Email_Exists" isMarkerVisible="true">
+        <dc:Bounds x="1210" y="435" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1208" y="396" width="44" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Return_Email_Exists_di" bpmnElement="Task_Return_Email_Exists">
+        <dc:Bounds x="1120" y="665" width="220" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Email_Exists_di" bpmnElement="End_Email_Exists">
+        <dc:Bounds x="1430" y="682" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1408" y="726" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Hash_Password_di" bpmnElement="Task_Hash_Password">
+        <dc:Bounds x="1350" y="425" width="150" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Create_User_di" bpmnElement="Task_Create_User">
+        <dc:Bounds x="1570" y="425" width="150" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Send_Email_di" bpmnElement="Task_Send_Email">
+        <dc:Bounds x="1790" y="425" width="170" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Return_Success_di" bpmnElement="Task_Return_Success">
+        <dc:Bounds x="2030" y="425" width="150" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Success_di" bpmnElement="End_Success">
+        <dc:Bounds x="2270" y="442" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2256" y="486" width="65" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_Validate_di" bpmnElement="Flow_Start_Validate">
+        <di:waypoint x="276" y="460" />
+        <di:waypoint x="330" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Validate_Password_Gateway_di" bpmnElement="Flow_Validate_Password_Gateway">
+        <di:waypoint x="490" y="460" />
+        <di:waypoint x="560" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Password_Weak_di" bpmnElement="Flow_Password_Weak">
+        <di:waypoint x="585" y="485" />
+        <di:waypoint x="585" y="665" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="600" y="570" width="19" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Password_Strong_di" bpmnElement="Flow_Password_Strong">
+        <di:waypoint x="610" y="460" />
+        <di:waypoint x="700" y="460" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="651" y="437" width="14" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Weak_End_di" bpmnElement="Flow_Weak_End">
+        <di:waypoint x="680" y="700" />
+        <di:waypoint x="770" y="700" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Check_Email_Get_Result_di" bpmnElement="Flow_Check_Email_Get_Result">
+        <di:waypoint x="880" y="460" />
+        <di:waypoint x="960" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Get_Result_Email_Gateway_di" bpmnElement="Flow_Get_Result_Email_Gateway">
+        <di:waypoint x="1130" y="460" />
+        <di:waypoint x="1210" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Email_Exists_di" bpmnElement="Flow_Email_Exists">
+        <di:waypoint x="1235" y="485" />
+        <di:waypoint x="1235" y="665" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1251" y="570" width="14" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Email_Free_di" bpmnElement="Flow_Email_Free">
+        <di:waypoint x="1260" y="460" />
+        <di:waypoint x="1350" y="460" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1301" y="437" width="19" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Email_Exists_End_di" bpmnElement="Flow_Email_Exists_End">
+        <di:waypoint x="1340" y="700" />
+        <di:waypoint x="1430" y="700" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Hash_Create_User_di" bpmnElement="Flow_Hash_Create_User">
+        <di:waypoint x="1500" y="460" />
+        <di:waypoint x="1570" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Create_Send_Email_di" bpmnElement="Flow_Create_Send_Email">
+        <di:waypoint x="1720" y="460" />
+        <di:waypoint x="1790" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Send_Email_Return_Success_di" bpmnElement="Flow_Send_Email_Return_Success">
+        <di:waypoint x="1960" y="460" />
+        <di:waypoint x="2030" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Success_End_di" bpmnElement="Flow_Success_End">
+        <di:waypoint x="2180" y="460" />
+        <di:waypoint x="2270" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_DB_di" bpmnElement="Participant_DB" isHorizontal="true">
+        <dc:Bounds x="160" y="890" width="2300" height="90" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_Email_di" bpmnElement="Participant_Email" isHorizontal="true">
+        <dc:Bounds x="160" y="1020" width="2300" height="90" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Message_User_Mobile_di" bpmnElement="Message_User_Mobile">
+        <di:waypoint x="410" y="120" />
+        <di:waypoint x="410" y="150" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="433" y="128" width="104" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_Weak_Mobile_di" bpmnElement="Message_Weak_Mobile">
+        <di:waypoint x="505" y="665" />
+        <di:waypoint x="505" y="240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="527" y="320" width="102" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_EmailExists_Mobile_di" bpmnElement="Message_EmailExists_Mobile">
+        <di:waypoint x="1120" y="665" />
+        <di:waypoint x="1120" y="240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1145" y="320" width="136" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_Success_Mobile_di" bpmnElement="Message_Success_Mobile">
+        <di:waypoint x="2105" y="425" />
+        <di:waypoint x="2105" y="240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2123" y="315" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_Mobile_Backend_di" bpmnElement="Message_Mobile_Backend">
+        <di:waypoint x="258" y="240" />
+        <di:waypoint x="258" y="442" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="285" y="330" width="130" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_Check_Email_DB_di" bpmnElement="Message_Check_Email_DB">
+        <di:waypoint x="790" y="495" />
+        <di:waypoint x="790" y="890" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="806" y="805" width="148" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_DB_Check_Result_di" bpmnElement="Message_DB_Check_Result">
+        <di:waypoint x="1045" y="890" />
+        <di:waypoint x="1045" y="495" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1071" y="805" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_Create_User_DB_di" bpmnElement="Message_Create_User_DB">
+        <di:waypoint x="1645" y="495" />
+        <di:waypoint x="1645" y="890" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1660" y="805" width="115" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_Send_Email_di" bpmnElement="Message_Send_Email">
+        <di:waypoint x="1875" y="495" />
+        <di:waypoint x="1875" y="1020" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1930" y="930" width="95" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_Email_Result_di" bpmnElement="Message_Email_Result">
+        <di:waypoint x="2105" y="1020" />
+        <di:waypoint x="2105" y="495" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2124" y="930" width="102" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
