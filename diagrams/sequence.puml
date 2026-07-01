@@ -1,0 +1,37 @@
+@startuml
+title Регистрация пользователя в мобильном приложении
+
+actor Пользователь as User
+participant Мобильное приложение as Mobile
+participant Backend API as Backend
+database База данных as DB
+participant Email сервис as Email
+
+User -> Mobile: вводит email и пароль
+Mobile -> Backend: POST /api/v1/auth/register
+Backend -> Backend: проверяет формат email
+Backend -> Backend: проверяет сложность пароля
+
+alt пароль слабый
+    Backend --> Mobile: 400 WEAK_PASSWORD
+    Mobile --> User: показать требования к паролю
+else пароль корректный
+    Backend -> DB: поиск пользователя по email
+
+    alt email уже существует
+        DB --> Backend: пользователь найден
+        Backend --> Mobile: 409 EMAIL_ALREADY_EXISTS
+        Mobile --> User: показать ошибку
+    else email свободен
+        DB --> Backend: пользователь не найден
+        Backend -> Backend: хеширует пароль
+        Backend -> DB: создать пользователя
+        DB --> Backend: пользователь создан
+        Backend -> Email: отправить письмо подтверждения
+        Email --> Backend: письмо отправлено
+        Backend --> Mobile: 201 CREATED
+        Mobile --> User: показать сообщение
+    end
+end
+
+@enduml
