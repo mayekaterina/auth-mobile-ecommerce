@@ -1,11 +1,11 @@
 @startuml
 title Регистрация пользователя в мобильном приложении
 
-actor Пользователь as User
-participant Мобильное приложение as Mobile
-participant Backend API as Backend
-database База данных as DB
-participant Email сервис as Email
+actor "Пользователь" as User
+participant "Мобильное приложение" as Mobile
+participant "Backend API" as Backend
+database "База данных" as DB
+participant "Email сервис" as Email
 
 User -> Mobile: вводит email и пароль
 Mobile -> Backend: POST /api/v1/auth/register
